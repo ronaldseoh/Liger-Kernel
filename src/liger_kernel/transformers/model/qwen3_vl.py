@@ -116,6 +116,24 @@ def lce_forward(
     if skip_logits is None:
         skip_logits = self.training and (labels is not None or shift_labels is not None)
 
+
+    # Only keep kwargs that LigerForCausalLMLoss / fused CE actually understands
+    allowed_loss_kwargs = {
+        "ce_weight",
+        "ignore_index",
+        "lse_square_scale",
+        "label_smoothing",
+        "reduction",
+        "softcap",
+        "return_z_loss",
+        "accum_dtype",
+        "use_token_scaling",
+        "return_token_accuracy",
+        "return_predicted_tokens",
+    }
+
+    loss_kwargs = {k: v for k, v in kwargs.items() if k in allowed_loss_kwargs}
+
     if skip_logits:
         result = LigerForCausalLMLoss(
             hidden_states=hidden_states,
@@ -123,8 +141,9 @@ def lce_forward(
             labels=labels,
             shift_labels=shift_labels,
             hidden_size=self.config.text_config.hidden_size,
-            **kwargs,
+            **loss_kwargs,
         )
+
         loss, _, token_accuracy = unpack_cross_entropy_result(result)
     else:
         logits = self.lm_head(hidden_states)
